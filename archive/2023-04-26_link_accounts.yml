@@ -1,0 +1,294 @@
+openapi: 3.0.2
+info:
+  title: 個人口座
+  version: 1.0.0
+  description: ""
+  contact:
+    name: Moneytree Link Support
+    email: link-support@moneytree.jp
+servers:
+  - url: https://jp-api-staging.getmoneytree.com
+    description: 日本の検証環境
+  - url: https://jp-api.getmoneytree.com
+    description: 日本の本番環境
+tags:
+  - name: 個人口座
+    description: 個人口座
+paths:
+  /link/accounts.json:
+    get:
+      tags:
+        - 個人口座
+      security:
+        - oauth2:
+            - accounts_read
+      operationId: get-link-v1-accounts
+      summary: 個人口座
+      description: |
+        > 📘 必要なOAuthスコープ: `accounts_read`
+
+        銀行口座、クレジットカード、デジタルマネーなど、すべての個人口座のリストを取得できます。
+      parameters:
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - accounts
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Account"
+        "400":
+          description: |
+            Bad Requestは、APIに対して行われたリクエストが無効である場合に返されます。
+            これは通常、送信されたデータが検証を通過しなかったことが原因です。
+        "403":
+          description: 持っているアクセストークンが有効であるものの、本APIで必要とされるスコープが付与されていない時に返却されるコード
+components:
+  schemas:
+    Account:
+      allOf:
+        - type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+              description: マネーツリーが付与した口座ID
+            account_group:
+              type: integer
+              format: int64
+              description: アカウントが属してるグループ。アカウントグループは金融機関のサイトでは１ユーザとして表示される。
+            account_type:
+              type: string
+              deprecated: true
+              maxLength: 255
+              description: "[DEPRECATED - `account_subtype`をご利用ください]
+                口座の種類。`account_subtype`の方が細かい。"
+            account_subtype:
+              type: string
+              maxLength: 255
+              description: >
+                [口座の具体的な種類](https://docs.link.getmoneytree.com/docs/account_subtype_list)
+            currency:
+              type: string
+              description: ISO4217に基づく通貨のコード
+            institution_entity_key:
+              type: string
+              maxLength: 255
+              description: アカウントが属する金融機関（institution）のentity
+                key（上記のIDの代わりに、これを利用してください。）金融機関の合併などで、アカウントのinstitution_entity_keyが変わることがあるため、APIを読み取ったたびに新しい値があれば格納した方がいい。
+            institution_account_name:
+              type: string
+              maxLength: 255
+              description: 金融機関（institution）の口座名。例）積立貯金
+            institution_account_number:
+              type: string
+              maxLength: 255
+              description: 口座の「口座番号」のようなもの。仕様（桁数や英数字など）は金融機関ごとの仕様になり、金融機関の都合によって予告なく変更されたりする場合もありますのでご注意ください。また、クレジットカード等の場合、金融機関側の仕様にて番号が一部または全部マスキングされている場合もあります。
+              nullable: true
+            nickname:
+              type: string
+              maxLength: 255
+              description: マネーツリー内でお客様が口座につけた名称
+              nullable: true
+            institution_id:
+              type: integer
+              format: int64
+              deprecated: true
+              description: |
+                [DEPRECATED]アカウントが属する金融機関（institution）のID
+          required:
+            - id
+            - account_group
+            - account_subtype
+            - currency
+            - institution_entity_key
+            - institution_account_name
+            - institution_account_number
+            - nickname
+            - institution_id
+        - type: object
+          properties:
+            account_subtype:
+              enum:
+                - savings
+                - checking
+                - chochiku
+                - term_deposit
+                - term_deposit_builder
+                - term_deposit_shikumi
+                - zaikei
+                - card_loan
+                - debit_card
+                - tax_payment_reserve_deposit
+                - credit_card
+                - loan_installment
+                - asset_management
+                - home_loan
+                - stored_value
+            current_balance:
+              type: number
+              format: double
+              description: アカウント残高（"last_aggregated_success"時点）
+              nullable: true
+            current_balance_in_base:
+              type: number
+              format: double
+              description: アカウント残高の円換算額。金融サービスが外貨の換算額を提供している場合は、その換算額を保管し、このフィールドで返されます。対応していない場合は、Moneytreeが利用している換算レートで計算します。
+              nullable: true
+            current_balance_data_source:
+              $ref: "#/components/schemas/dataSource"
+            branch_name:
+              type: string
+              maxLength: 255
+              description: 金融機関の口座の支店 例）「本店」、「原宿支店」、「３０９」
+                金融機関によって返されるデータが異なりますので、ご注意ください。あくまでもこちらの値は表示用に用意しており、自動処理に使わないでください。また、この情報がない場合、nullは可能です。
+              nullable: true
+            branch_code:
+              type: string
+              maxLength: 255
+              description: 支店番号。該当しない場合 "null"が返される
+              nullable: true
+            attributes:
+              type: object
+              properties: {}
+              additionalProperties: true
+              description: アカウントの追加カスタム属性です。
+            reserved_attributes:
+              x-mt-unlisted: true
+              type: object
+              properties: {}
+              additionalProperties: true
+              description: このLINKクライアントのための特別な追加属性。このパラメータは、クライアントがこの機能を構成していない場合、完全に欠落する;
+                これは公式のLINK公開仕様の一部であってはならない。
+          required:
+            - current_balance
+            - current_balance_in_base
+            - current_balance_data_source
+            - branch_name
+            - branch_code
+            - attributes
+        - type: object
+          properties:
+            aggregation_state:
+              type: string
+              nullable: false
+              maxLength: 255
+              enum:
+                - success
+                - running
+                - error
+              description: 最新のデータの取得状況。値と意味は下記参照。
+            aggregation_status:
+              type: string
+              nullable: false
+              maxLength: 255
+              enum:
+                - success
+                - running.auth
+                - running.data
+                - running.intelligence
+                - suspended.missing-answer.auth.security
+                - suspended.missing-answer.auth.otp
+                - suspended.missing-answer.auth.captcha
+                - suspended.missing-answer.auth.puzzle
+                - auth.creds.captcha.invalid
+                - auth.creds.puzzle.invalid
+                - auth.creds.otp.invalid
+                - auth.creds.invalid
+                - auth.creds.security.invalid
+                - auth.creds.locked.temporary
+                - auth.creds.locked.permanent
+                - error.permanent
+                - error.temporary
+                - error.session
+                - error.network
+                - error.unsupported
+                - error.service.unavailable
+                - guest.intervention.required
+                - inactive
+              description: >
+                最新のデータの取得状況。"aggregation_state"より詳細な内容。値と意味はこちらを参照。
+
+                より詳細な説明は、[aggregation_statusの一覧](https://docs.link.getmoneytree.com/docs/aggregation_status_list)ガイドを参照してください。
+            last_aggregated_at:
+              type: string
+              format: date-time
+              description: データを取得した前回時刻
+              nullable: true
+            last_aggregated_success:
+              type: string
+              format: date-time
+              description: データを正常に取得できた前回時刻
+              nullable: true
+          required:
+            - aggregation_state
+            - aggregation_status
+            - last_aggregated_at
+            - last_aggregated_success
+        - type: object
+          properties:
+            created_at:
+              type: string
+              format: date-time
+              description: マネーツリーに登録された時刻
+            updated_at:
+              type: string
+              format: date-time
+              description: 最終更新時刻
+          required:
+            - created_at
+            - updated_at
+    dataSource:
+      type: string
+      enum:
+        - guest
+        - institution
+      description: データの出所を示すラベル
+      nullable: true
+  parameters:
+    page:
+      name: page
+      in: query
+      description: ベージ番号
+      schema:
+        type: number
+        default: 1
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: >
+        MT LINK APIは、OAuth 2.0のスコープ機能（アクセスが可能な範囲を制限機能）により、利用者のデータへのアクセスを制限しております。
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth/authorize
+          tokenUrl: /oauth/token
+          scopes:
+            guest_read: Moneytreeアカウントの基本情報（メールアドレス、言語、地域）の閲覧
+            accounts_read: Moneytreeに登録している銀行口座、クレジットカード、デビットカード、電子マネーの名称、口座の種別、残高の閲覧
+            transactions_read: Moneytreeに登録している銀行口座、クレジットカード、デビットカード、電子マネーの明細の閲覧
+            transactions_write: Moneytreeに登録している銀行口座、クレジットカード、デビットカード、電子マネーの明細のカテゴリやメモの編集
+            request_refresh: Moneytreeに登録している金融サービスの資産情報の取得
+            investment_accounts_read: Moneytreeに登録している投資用口座（投資信託、株式、確定拠出年金）の名称、口座の種別、残高の閲覧
+            investment_transactions_read: Moneytreeに登録している保有銘柄の明細の閲覧
+            points_read: Moneytreeに登録しているポイントの名称、残高、明細の閲覧
+            life_insurance_read: Moneytreeに登録している生命保険の契約内容の閲覧
+        clientCredentials:
+          tokenUrl: /oauth/token
+          scopes:
+            guest_read: Moneytreeアカウントの基本情報（メールアドレス、言語、地域）の閲覧
+            accounts_read: Moneytreeに登録している銀行口座、クレジットカード、デビットカード、電子マネーの名称、口座の種別、残高の閲覧
+            transactions_read: Moneytreeに登録している銀行口座、クレジットカード、デビットカード、電子マネーの明細の閲覧
+            transactions_write: Moneytreeに登録している銀行口座、クレジットカード、デビットカード、電子マネーの明細のカテゴリやメモの編集
+            request_refresh: Moneytreeに登録している金融サービスの資産情報の取得
+            investment_accounts_read: Moneytreeに登録している投資用口座（投資信託、株式、確定拠出年金）の名称、口座の種別、残高の閲覧
+            investment_transactions_read: Moneytreeに登録している保有銘柄の明細の閲覧
+            points_read: Moneytreeに登録しているポイントの名称、残高、明細の閲覧
+            life_insurance_read: Moneytreeに登録している生命保険の契約内容の閲覧
